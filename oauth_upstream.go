@@ -130,7 +130,7 @@ func decodeToken(s string) (*oauth2.Token, error) {
 }
 
 func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Printf("[DEBUG] Serving request: %s", req.URL.Path)
+	// log.Printf("[DEBUG] Serving request: %s", req.URL.Path)
 	if strings.HasPrefix(req.URL.Path, CALLBACK_PATH) {
 		// Handle token exchange
 		callbackCode := req.URL.Query().Get("code")
@@ -208,8 +208,8 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Redirect(rw, req, url, http.StatusFound)
 			return
 		}
-		log.Printf("[DEBUG] Got user email: %s", email)
-		log.Printf("[DEBUG] Allowed emails: %v", a.allowedEmails)
+		// log.Printf("[DEBUG] Got user email: %s", email)
+		// log.Printf("[DEBUG] Allowed emails: %v", a.allowedEmails)
 		if !a.isEmailAllowed(email) {
 			log.Printf("[DEBUG] Access denied for email: %s", email)
 			http.Error(rw, "Access denied: Your email ("+email+") is not authorized to access this resource", http.StatusForbidden)
