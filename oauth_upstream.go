@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 	"net/url"
+	"log"
 
 	"golang.org/x/oauth2"
 )
@@ -84,8 +85,8 @@ func (a *OauthUpstream) getUserEmail(token *oauth2.Token) (string, error) {
 	defer resp.Body.Close()
 	// Debug: print status and body
 	bodyBytes, _ := io.ReadAll(resp.Body)
-	fmt.Printf("[DEBUG] userinfo status: %d\n", resp.StatusCode)
-	fmt.Printf("[DEBUG] userinfo body: %s\n", string(bodyBytes))
+	// log.Printf("[DEBUG] userinfo status: %d", resp.StatusCode)
+	// log.Printf("[DEBUG] userinfo body: %s", string(bodyBytes))
 	// Try to decode
 	var userInfo UserInfo
 	if err := json.Unmarshal(bodyBytes, &userInfo); err != nil {
@@ -129,10 +130,22 @@ func decodeToken(s string) (*oauth2.Token, error) {
 }
 
 func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	log.Printf("[DEBUG] Serving request: %s", req.URL.Path)
 	if strings.HasPrefix(req.URL.Path, CALLBACK_PATH) {
 		// Handle token exchange
 		callbackCode := req.URL.Query().Get("code")
 		state := req.URL.Query().Get("state") // original URL
+		// log.Printf("[DEBUG] raw state from callback: %q", state)
+		if state == "" {
+			state = "/"
+		} else {
+			if decoded, err := url.QueryUnescape(state); err == nil {
+				// log.Printf("[DEBUG] decoded state: %q", decoded)
+				state = decoded
+			} else {
+				log.Printf("[DEBUG] state decode error: %v", err)
+			}
+		}
 		//nolint:contextcheck // false positive
 		token, err := a.config.Exchange(context.Background(), callbackCode)
 		if err != nil {
@@ -152,9 +165,6 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			Secure:   true,
 			Expires:  token.Expiry,
 		})
-		if state == "" {
-			state = "/"
-		}
 		http.Redirect(rw, req, state, http.StatusFound)
 		return
 	}
@@ -198,10 +208,10 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Redirect(rw, req, url, http.StatusFound)
 			return
 		}
-		fmt.Printf("[DEBUG] Got user email: %s\n", email)
-		fmt.Printf("[DEBUG] Allowed emails: %v\n", a.allowedEmails)
+		log.Printf("[DEBUG] Got user email: %s", email)
+		log.Printf("[DEBUG] Allowed emails: %v", a.allowedEmails)
 		if !a.isEmailAllowed(email) {
-			fmt.Printf("[DEBUG] Access denied for email: %s\n", email)
+			log.Printf("[DEBUG] Access denied for email: %s", email)
 			http.Error(rw, "Access denied: Your email ("+email+") is not authorized to access this resource", http.StatusForbidden)
 			return
 		}
