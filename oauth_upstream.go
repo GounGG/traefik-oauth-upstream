@@ -167,7 +167,7 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Error(rw, "Failed to encode token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// 获取邮箱并写入cookie
+		// Get email and write to cookie
 		email := ""
 		if len(a.allowedEmails) > 0 || len(a.allowedEmailDomains) > 0 {
 			email, err = a.getUserEmail(token)
@@ -232,7 +232,7 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			email, _ = url.QueryUnescape(emailCookie.Value)
 		}
 		if email == "" {
-			// 没有缓存邮箱，去Google拉取并写入cookie
+			// No cached email, fetch from Google and write to cookie
 			email, err = a.getUserEmail(token)
 			if err != nil {
 				// Token invalid, force re-login
