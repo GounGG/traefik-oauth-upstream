@@ -15,3 +15,8 @@ testData:
   scopes:
     - "https://www.googleapis.com/auth/calendar.readonly"
     - "https://www.googleapis.com/auth/calendar.events.readonly"
+  allowedEmails:
+    - "user1@example.com"
+    - "user2@garena.com"
+  allowedEmailDomains:
+    - "garena.com"

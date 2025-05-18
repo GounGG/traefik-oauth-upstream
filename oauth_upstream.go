@@ -26,6 +26,8 @@ type Config struct {
 	TokenURL     string   `json:"tokenUrl"`
 	Scopes       []string `json:"scopes"`
 	AllowedEmails []string `json:"allowedEmails"`
+	// AllowedEmailDomains allows all emails with these domain suffixes (e.g. "garena.com")
+	AllowedEmailDomains []string `json:"allowedEmailDomains"`
 }
 
 // CreateConfig - creates the default plugin configuration.
@@ -41,6 +43,7 @@ type OauthUpstream struct {
 	config     *oauth2.Config
 	name       string
 	allowedEmails []string
+	allowedEmailDomains []string
 }
 
 // New created a new Demo plugin.
@@ -62,6 +65,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		next:       next,
 		name:       name,
 		allowedEmails: config.AllowedEmails,
+		allowedEmailDomains: config.AllowedEmailDomains,
 	}, nil
 }
 
@@ -96,11 +100,19 @@ func (a *OauthUpstream) getUserEmail(token *oauth2.Token) (string, error) {
 }
 
 func (a *OauthUpstream) isEmailAllowed(email string) bool {
-	if len(a.allowedEmails) == 0 {
-		return true // If not configured, allow all emails
+	// If neither list is configured, allow all emails
+	if len(a.allowedEmails) == 0 && len(a.allowedEmailDomains) == 0 {
+		return true
 	}
+	// Exact match
 	for _, allowed := range a.allowedEmails {
 		if email == allowed {
+			return true
+		}
+	}
+	// Suffix match (domain)
+	for _, domain := range a.allowedEmailDomains {
+		if strings.HasSuffix(strings.ToLower(email), "@"+strings.ToLower(domain)) {
 			return true
 		}
 	}
@@ -198,7 +210,7 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Validate email
-	if len(a.allowedEmails) > 0 {
+	if len(a.allowedEmails) > 0 || len(a.allowedEmailDomains) > 0 {
 		email, err := a.getUserEmail(token)
 		if err != nil {
 			// Token invalid, force re-login
