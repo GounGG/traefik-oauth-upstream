@@ -147,12 +147,10 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		// Handle token exchange
 		callbackCode := req.URL.Query().Get("code")
 		state := req.URL.Query().Get("state") // original URL
-		// log.Printf("[DEBUG] raw state from callback: %q", state)
 		if state == "" {
 			state = "/"
 		} else {
 			if decoded, err := url.QueryUnescape(state); err == nil {
-				// log.Printf("[DEBUG] decoded state: %q", decoded)
 				state = decoded
 			} else {
 				log.Printf("[DEBUG] state decode error: %v", err)
@@ -168,6 +166,23 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			http.Error(rw, "Failed to encode token: "+err.Error(), http.StatusInternalServerError)
 			return
+		}
+		// 获取邮箱并写入cookie
+		email := ""
+		if len(a.allowedEmails) > 0 || len(a.allowedEmailDomains) > 0 {
+			email, err = a.getUserEmail(token)
+			if err != nil {
+				http.Error(rw, "Failed to get userinfo: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			http.SetCookie(rw, &http.Cookie{
+				Name:     "oauth_email",
+				Value:    url.QueryEscape(email),
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   true,
+				Expires:  token.Expiry,
+			})
 		}
 		http.SetCookie(rw, &http.Cookie{
 			Name:     "oauth_token",
@@ -211,17 +226,31 @@ func (a *OauthUpstream) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	// Validate email
 	if len(a.allowedEmails) > 0 || len(a.allowedEmailDomains) > 0 {
-		email, err := a.getUserEmail(token)
-		if err != nil {
-			// Token invalid, force re-login
-			a.config.RedirectURL = fmt.Sprintf("https://%s%s", req.Host, CALLBACK_PATH)
-			state := url.QueryEscape(req.URL.RequestURI())
-			url := a.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
-			http.Redirect(rw, req, url, http.StatusFound)
-			return
+		email := ""
+		emailCookie, err := req.Cookie("oauth_email")
+		if err == nil && emailCookie.Value != "" {
+			email, _ = url.QueryUnescape(emailCookie.Value)
 		}
-		// log.Printf("[DEBUG] Got user email: %s", email)
-		// log.Printf("[DEBUG] Allowed emails: %v", a.allowedEmails)
+		if email == "" {
+			// 没有缓存邮箱，去Google拉取并写入cookie
+			email, err = a.getUserEmail(token)
+			if err != nil {
+				// Token invalid, force re-login
+				a.config.RedirectURL = fmt.Sprintf("https://%s%s", req.Host, CALLBACK_PATH)
+				state := url.QueryEscape(req.URL.RequestURI())
+				url := a.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+				http.Redirect(rw, req, url, http.StatusFound)
+				return
+			}
+			http.SetCookie(rw, &http.Cookie{
+				Name:     "oauth_email",
+				Value:    url.QueryEscape(email),
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   true,
+				Expires:  token.Expiry,
+			})
+		}
 		if !a.isEmailAllowed(email) {
 			log.Printf("[DEBUG] Access denied for email: %s", email)
 			http.Error(rw, "Access denied: Your email ("+email+") is not authorized to access this resource", http.StatusForbidden)
