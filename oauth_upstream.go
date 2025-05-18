@@ -26,7 +26,7 @@ type Config struct {
 	TokenURL     string   `json:"tokenUrl"`
 	Scopes       []string `json:"scopes"`
 	AllowedEmails []string `json:"allowedEmails"`
-	// AllowedEmailDomains allows all emails with these domain suffixes (e.g. "garena.com")
+	// AllowedEmailDomains allows all emails with these domain suffixes (e.g. "example.com")
 	AllowedEmailDomains []string `json:"allowedEmailDomains"`
 }
 
